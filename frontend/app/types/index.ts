@@ -16,15 +16,12 @@ export interface Vehicle {
 
 export interface SeatLayout {
   rows: number;
-  columns: number;
-  seats: Seat[];
+  seatsPerRow: number;
 }
 
 export interface Seat {
   number: string;
-  row: number;
-  column: number;
-  type: 'standard' | 'premium' | 'driver';
+  type: 'standard' | 'premium' | 'unknown';
   available: boolean;
 }
 

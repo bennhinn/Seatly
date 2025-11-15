@@ -19,16 +19,18 @@ A full-stack seat booking and payment platform for buses, matatus, and airplanes
 seatly/
 ├── frontend/              # Next.js 14+ application
 │   ├── app/
-│   │   ├── components/   # Reusable React components
+│   │   ├── components/   # Reusable React components (SeatMap, etc.)
 │   │   ├── lib/          # Utility functions and configurations
 │   │   ├── types/        # TypeScript type definitions
 │   │   ├── booking/      # Booking page
 │   │   ├── admin/        # Admin dashboard
+│   │   ├── demo/         # Demo page for SeatMap component
 │   │   └── page.tsx      # Home page
 │   ├── public/           # Static assets
 │   └── package.json
 ├── backend/               # Express.js API server
 │   ├── src/
+│   │   ├── lib/          # Socket.io module and utilities
 │   │   ├── routes/       # API route handlers
 │   │   ├── middleware/   # Auth and validation middleware
 │   │   └── index.ts      # Server entry point
@@ -36,6 +38,7 @@ seatly/
 │   │   └── schema.prisma # Database schema
 │   └── package.json
 ├── docker-compose.yml     # Development environment
+├── SOCKET_REALTIME.md     # Real-time features documentation
 └── README.md
 ```
 
@@ -208,6 +211,22 @@ The application uses Prisma ORM with PostgreSQL:
 
 ## 🔧 Development
 
+### Real-time Features
+
+The platform includes real-time seat updates using Socket.io. See [SOCKET_REALTIME.md](SOCKET_REALTIME.md) for detailed documentation.
+
+**Quick Demo:**
+```bash
+# Start the application with docker-compose
+docker-compose up -d
+
+# Visit the demo page
+open http://localhost:3000/demo
+
+# Test Socket.io connection
+node test-socket.js
+```
+
 ### Running Tests
 ```bash
 # Backend tests (when implemented)
@@ -217,6 +236,9 @@ npm test
 # Frontend tests (when implemented)
 cd frontend
 npm test
+
+# Test Socket.io connection
+node test-socket.js
 ```
 
 ### Database Management

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
+import { emitSeatUpdate } from '../lib/socket';
 
 const router = Router();
 
@@ -102,6 +103,9 @@ router.post('/:routeId/select', async (req: Request, res: Response) => {
       },
     });
 
+    // Emit real-time seat update to all clients in this route room
+    emitSeatUpdate(route.id, { seatNumber, status: 'reserved' });
+
     res.json({
       success: true,
       message: `Seat ${seatNumber} reserved successfully`,
@@ -135,6 +139,9 @@ router.post('/:routeId/release', async (req: Request, res: Response) => {
     }
 
     await prisma.booking.update({ where: { id: booking.id }, data: { status: 'cancelled' } });
+
+    // Emit real-time seat update to all clients in this route room
+    emitSeatUpdate(req.params.routeId, { seatNumber, status: 'available' });
 
     res.json({
       success: true,
