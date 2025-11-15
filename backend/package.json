@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "nodemon src/index.ts",
+    "dev": "npx ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "ts-node prisma/seed.ts",
@@ -12,7 +12,12 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
   },
-  "keywords": ["seatly", "booking", "backend", "api"],
+  "keywords": [
+    "seatly",
+    "booking",
+    "backend",
+    "api"
+  ],
   "author": "",
   "license": "MIT",
   "description": "Backend API server for Seatly seat booking platform",
@@ -34,6 +39,7 @@
     "nodemon": "^3.1.10",
     "prisma": "^6.19.0",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
   }
 }

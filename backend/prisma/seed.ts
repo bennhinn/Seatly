@@ -1,536 +1,294 @@
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
+async function getOrCreateUser(data: {
+  name: string;
+  email: string;
+  password: string;
+  role?: string;
+}) {
+  const existing = await prisma.user.findUnique({ where: { email: data.email } });
+  if (existing) return existing;
+  const hashed = await bcrypt.hash(data.password, 10);
+  return prisma.user.create({
+    data: {
+      name: data.name,
+      email: data.email,
+      password: hashed,
+      role: data.role ?? "user",
+    },
+  });
+}
+
+async function getOrCreateVehicle(data: {
+  name: string;
+  type: string;
+  seatLayout: any;
+}) {
+  const existing = await prisma.vehicle.findFirst({ where: { name: data.name, type: data.type } });
+  if (existing) return existing;
+  return prisma.vehicle.create({ data });
+}
+
+async function getOrCreateRoute(data: {
+  origin: string;
+  destination: string;
+  departure: Date;
+  arrival: Date;
+  price: number;
+  vehicleId: string;
+}) {
+  const existing = await prisma.route.findFirst({
+    where: {
+      origin: data.origin,
+      destination: data.destination,
+      departure: data.departure,
+      vehicleId: data.vehicleId,
+    },
+  });
+  if (existing) return existing;
+  return prisma.route.create({ data });
+}
+
+async function getOrCreateBooking(data: {
+  seatNumber: string;
+  userId: string;
+  routeId: string;
+  status?: string;
+}) {
+  const existing = await prisma.booking.findFirst({
+    where: {
+      seatNumber: data.seatNumber,
+      userId: data.userId,
+      routeId: data.routeId,
+    },
+  });
+  if (existing) return existing;
+  return prisma.booking.create({ data: { ...data } });
+}
+
+async function getOrCreatePayment(data: {
+  bookingId: string;
+  method: string;
+  amount: number;
+  status?: string;
+  reference?: string;
+}) {
+  const existing = await prisma.payment.findUnique({ where: { bookingId: data.bookingId } });
+  if (existing) return existing;
+  return prisma.payment.create({
+    data: {
+      bookingId: data.bookingId,
+      method: data.method,
+      amount: data.amount,
+      status: data.status ?? "pending",
+      reference: data.reference ?? "",
+    },
+  });
+}
+
 async function main() {
-  console.log('🌱 Starting database seeding...');
+  console.log("Seeding database...");
 
-  // Clear existing data in reverse order of dependencies
-  console.log('🧹 Cleaning existing data...');
-  await prisma.payment.deleteMany();
-  await prisma.booking.deleteMany();
-  await prisma.route.deleteMany();
-  await prisma.vehicle.deleteMany();
-  await prisma.user.deleteMany();
+  // Users (admin + regular)
+  const users = [
+    { name: "John Kamau", email: "john.kamau@example.com", password: "Password123!", role: "admin" },
+    { name: "Mary Wanjiku", email: "mary.wanjiku@example.com", password: "Password123!", role: "user" },
+    { name: "Peter Ochieng", email: "peter.ochieng@example.com", password: "Password123!", role: "user" },
+    { name: "Grace Njeri", email: "grace.njeri@example.com", password: "Password123!", role: "user" },
+    { name: "Samuel Otieno", email: "samuel.otieno@example.com", password: "Password123!", role: "user" },
+  ];
 
-  // Hash password for all users
-  const hashedPassword = await bcrypt.hash('password123', 10);
+  const createdUsers = [];
+  for (const u of users) {
+    const user = await getOrCreateUser(u);
+    createdUsers.push(user);
+  }
 
-  // Create Users
-  console.log('👥 Creating users...');
-  const users = await Promise.all([
-    prisma.user.create({
-      data: {
-        name: 'John Kamau',
-        email: 'john.kamau@example.com',
-        password: hashedPassword,
-        role: 'admin',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'Mary Wanjiku',
-        email: 'mary.wanjiku@example.com',
-        password: hashedPassword,
-        role: 'user',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'David Omondi',
-        email: 'david.omondi@example.com',
-        password: hashedPassword,
-        role: 'user',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'Grace Achieng',
-        email: 'grace.achieng@example.com',
-        password: hashedPassword,
-        role: 'user',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'Peter Kipchoge',
-        email: 'peter.kipchoge@example.com',
-        password: hashedPassword,
-        role: 'user',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'Sarah Njeri',
-        email: 'sarah.njeri@example.com',
-        password: hashedPassword,
-        role: 'admin',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'James Mwangi',
-        email: 'james.mwangi@example.com',
-        password: hashedPassword,
-        role: 'user',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: 'Alice Wambui',
-        email: 'alice.wambui@example.com',
-        password: hashedPassword,
-        role: 'user',
-      },
-    }),
-  ]);
+  // Vehicles
+  const busLayout = { rows: 12, seatsPerRow: 4, layout: "2-2", totalSeats: 48 };
+  const matatuLayout = { rows: 7, seatsPerRow: 2, layout: "1-1", totalSeats: 14 };
+  const airplaneLayout = { rows: 20, seatsPerRow: 6, layout: "3-3", totalSeats: 120 };
 
-  console.log(`✅ Created ${users.length} users`);
+  const vehiclesData = [
+    { name: "Coaster Coach", type: "bus", seatLayout: busLayout },
+    { name: "Nissan Matatu", type: "matatu", seatLayout: matatuLayout },
+    { name: "Domestic ATR", type: "airplane", seatLayout: airplaneLayout },
+  ];
 
-  // Create Vehicles
-  console.log('🚌 Creating vehicles...');
-  const busLayout = {
-    rows: 12,
-    seatsPerRow: 4,
-    layout: '2-2',
-    totalSeats: 48,
-  };
+  const createdVehicles = [];
+  for (const v of vehiclesData) {
+    const vehicle = await getOrCreateVehicle(v);
+    createdVehicles.push(vehicle);
+  }
 
-  const matatuLayout = {
-    rows: 7,
-    seatsPerRow: 2,
-    layout: '2-2',
-    totalSeats: 14,
-  };
-
-  const airplaneLayout = {
-    rows: 20,
-    seatsPerRow: 6,
-    layout: '3-3',
-    totalSeats: 120,
-  };
-
-  const vehicles = await Promise.all([
-    prisma.vehicle.create({
-      data: {
-        name: 'Modern Coast Express',
-        type: 'bus',
-        seatLayout: busLayout,
-      },
-    }),
-    prisma.vehicle.create({
-      data: {
-        name: 'Easy Coach',
-        type: 'bus',
-        seatLayout: busLayout,
-      },
-    }),
-    prisma.vehicle.create({
-      data: {
-        name: 'Citi Hoppa Matatu',
-        type: 'matatu',
-        seatLayout: matatuLayout,
-      },
-    }),
-    prisma.vehicle.create({
-      data: {
-        name: 'Prestige Matatu',
-        type: 'matatu',
-        seatLayout: matatuLayout,
-      },
-    }),
-    prisma.vehicle.create({
-      data: {
-        name: 'Kenya Airways Dash 8',
-        type: 'airplane',
-        seatLayout: airplaneLayout,
-      },
-    }),
-  ]);
-
-  console.log(`✅ Created ${vehicles.length} vehicles`);
-
-  // Create Routes
-  console.log('🗺️  Creating routes...');
+  // Routes (future dates)
   const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const nextWeek = new Date(now);
-  nextWeek.setDate(nextWeek.getDate() + 7);
+  function daysFromNow(d: number, hour: number = 9) {
+    const x = new Date(now);
+    x.setDate(x.getDate() + d);
+    x.setHours(hour, 0, 0, 0); // Set a specific time, e.g., 9:00 AM
+    return x;
+  }
 
-  const routes = await Promise.all([
+  const routesData = [
     // Bus routes
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Mombasa',
-        departure: new Date(tomorrow.setHours(8, 0, 0, 0)),
-        arrival: new Date(tomorrow.setHours(16, 30, 0, 0)),
-        price: 1500,
-        vehicleId: vehicles[0].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Kisumu',
-        departure: new Date(tomorrow.setHours(7, 0, 0, 0)),
-        arrival: new Date(tomorrow.setHours(13, 0, 0, 0)),
-        price: 1200,
-        vehicleId: vehicles[0].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Eldoret',
-        departure: new Date(tomorrow.setHours(9, 30, 0, 0)),
-        arrival: new Date(tomorrow.setHours(15, 0, 0, 0)),
-        price: 1000,
-        vehicleId: vehicles[1].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Mombasa',
-        destination: 'Malindi',
-        departure: new Date(tomorrow.setHours(10, 0, 0, 0)),
-        arrival: new Date(tomorrow.setHours(12, 30, 0, 0)),
-        price: 800,
-        vehicleId: vehicles[1].id,
-      },
-    }),
+    {
+      origin: "Nairobi",
+      destination: "Mombasa",
+      departure: daysFromNow(3, 8), // Departs at 8 AM
+      durationHours: 8,
+      price: 1500,
+      vehicleId: createdVehicles.find(v => v.type === "bus")!.id,
+    },
+    {
+      origin: "Nairobi",
+      destination: "Kisumu",
+      departure: daysFromNow(4, 9), // Departs at 9 AM
+      durationHours: 7,
+      price: 1200,
+      vehicleId: createdVehicles.find(v => v.type === "bus")!.id,
+    },
+    {
+      origin: "Nairobi",
+      destination: "Eldoret",
+      departure: daysFromNow(5, 10), // Departs at 10 AM
+      durationHours: 6,
+      price: 1000,
+      vehicleId: createdVehicles.find(v => v.type === "bus")!.id,
+    },
+    {
+      origin: "Mombasa",
+      destination: "Malindi",
+      departure: daysFromNow(6, 14), // Departs at 2 PM
+      durationHours: 2,
+      price: 800,
+      vehicleId: createdVehicles.find(v => v.type === "bus")!.id,
+    },
+
     // Matatu routes
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Nakuru',
-        departure: new Date(tomorrow.setHours(6, 0, 0, 0)),
-        arrival: new Date(tomorrow.setHours(8, 30, 0, 0)),
-        price: 500,
-        vehicleId: vehicles[2].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Thika',
-        departure: new Date(tomorrow.setHours(7, 30, 0, 0)),
-        arrival: new Date(tomorrow.setHours(8, 30, 0, 0)),
-        price: 200,
-        vehicleId: vehicles[2].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Kisumu',
-        destination: 'Kakamega',
-        departure: new Date(tomorrow.setHours(8, 0, 0, 0)),
-        arrival: new Date(tomorrow.setHours(9, 30, 0, 0)),
-        price: 300,
-        vehicleId: vehicles[3].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Nakuru',
-        departure: new Date(nextWeek.setHours(14, 0, 0, 0)),
-        arrival: new Date(nextWeek.setHours(16, 30, 0, 0)),
-        price: 600,
-        vehicleId: vehicles[3].id,
-      },
-    }),
-    // Flight routes
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Mombasa',
-        departure: new Date(tomorrow.setHours(11, 0, 0, 0)),
-        arrival: new Date(tomorrow.setHours(12, 0, 0, 0)),
-        price: 12000,
-        vehicleId: vehicles[4].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Kisumu',
-        departure: new Date(tomorrow.setHours(15, 0, 0, 0)),
-        arrival: new Date(tomorrow.setHours(15, 45, 0, 0)),
-        price: 9000,
-        vehicleId: vehicles[4].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Nairobi',
-        destination: 'Eldoret',
-        departure: new Date(nextWeek.setHours(9, 0, 0, 0)),
-        arrival: new Date(nextWeek.setHours(9, 45, 0, 0)),
-        price: 8500,
-        vehicleId: vehicles[4].id,
-      },
-    }),
-    prisma.route.create({
-      data: {
-        origin: 'Mombasa',
-        destination: 'Nairobi',
-        departure: new Date(nextWeek.setHours(16, 0, 0, 0)),
-        arrival: new Date(nextWeek.setHours(17, 0, 0, 0)),
-        price: 12000,
-        vehicleId: vehicles[4].id,
-      },
-    }),
-  ]);
+    {
+      origin: "Nairobi",
+      destination: "Nakuru",
+      departure: daysFromNow(2, 7), // Departs at 7 AM
+      durationHours: 3,
+      price: 400,
+      vehicleId: createdVehicles.find(v => v.type === "matatu")!.id,
+    },
+    {
+      origin: "Nairobi",
+      destination: "Thika",
+      departure: daysFromNow(1, 11), // Departs at 11 AM
+      durationHours: 1,
+      price: 250,
+      vehicleId: createdVehicles.find(v => v.type === "matatu")!.id,
+    },
+    {
+      origin: "Kisumu",
+      destination: "Kakamega",
+      departure: daysFromNow(3, 13), // Departs at 1 PM
+      durationHours: 1.5,
+      price: 300,
+      vehicleId: createdVehicles.find(v => v.type === "matatu")!.id,
+    },
 
-  console.log(`✅ Created ${routes.length} routes`);
+    // Flight routes (use airplane vehicle)
+    {
+      origin: "Nairobi",
+      destination: "Mombasa",
+      departure: daysFromNow(2, 15), // Departs at 3 PM
+      durationHours: 1,
+      price: 12000,
+      vehicleId: createdVehicles.find(v => v.type === "airplane")!.id,
+    },
+    {
+      origin: "Nairobi",
+      destination: "Kisumu",
+      departure: daysFromNow(4, 16), // Departs at 4 PM
+      durationHours: 1,
+      price: 9000,
+      vehicleId: createdVehicles.find(v => v.type === "airplane")!.id,
+    },
+    {
+      origin: "Nairobi",
+      destination: "Eldoret",
+      departure: daysFromNow(5, 17), // Departs at 5 PM
+      durationHours: 1,
+      price: 8000,
+      vehicleId: createdVehicles.find(v => v.type === "airplane")!.id,
+    },
+  ];
 
-  // Create Bookings
-  console.log('🎫 Creating bookings...');
-  const bookings = await Promise.all([
-    prisma.booking.create({
-      data: {
-        seatNumber: 'A12',
-        userId: users[1].id,
-        routeId: routes[0].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: 'B8',
-        userId: users[2].id,
-        routeId: routes[0].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: 'C5',
-        userId: users[3].id,
-        routeId: routes[1].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: 'A1',
-        userId: users[4].id,
-        routeId: routes[2].id,
-        status: 'pending',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: 'D15',
-        userId: users[6].id,
-        routeId: routes[3].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '3',
-        userId: users[7].id,
-        routeId: routes[4].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '7',
-        userId: users[1].id,
-        routeId: routes[5].id,
-        status: 'cancelled',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '12',
-        userId: users[2].id,
-        routeId: routes[6].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '5A',
-        userId: users[3].id,
-        routeId: routes[8].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '12C',
-        userId: users[4].id,
-        routeId: routes[9].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '18F',
-        userId: users[6].id,
-        routeId: routes[10].id,
-        status: 'pending',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: 'A10',
-        userId: users[7].id,
-        routeId: routes[2].id,
-        status: 'confirmed',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: 'B3',
-        userId: users[1].id,
-        routeId: routes[7].id,
-        status: 'pending',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '8',
-        userId: users[5].id,
-        routeId: routes[4].id,
-        status: 'cancelled',
-      },
-    }),
-    prisma.booking.create({
-      data: {
-        seatNumber: '15B',
-        userId: users[2].id,
-        routeId: routes[11].id,
-        status: 'confirmed',
-      },
-    }),
-  ]);
+  const createdRoutes = [];
+  for (const r of routesData) {
+    const arrival = new Date(r.departure);
+    arrival.setHours(arrival.getHours() + r.durationHours);
 
-  console.log(`✅ Created ${bookings.length} bookings`);
+    const route = await getOrCreateRoute({
+      origin: r.origin,
+      destination: r.destination,
+      departure: r.departure,
+      arrival,
+      price: r.price,
+      vehicleId: r.vehicleId,
+    });
+    createdRoutes.push(route);
+  }
 
-  // Create Payments for confirmed bookings
-  console.log('💳 Creating payments...');
-  const confirmedBookings = bookings.filter((b) => b.status === 'confirmed');
-  
-  const payments = await Promise.all([
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[0].id,
-        method: 'mpesa',
-        amount: 1500,
-        status: 'completed',
-        reference: 'QGH7KL9M2P',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[1].id,
-        method: 'mpesa',
-        amount: 1500,
-        status: 'completed',
-        reference: 'RBM3NP8K5T',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[2].id,
-        method: 'card',
-        amount: 1200,
-        status: 'completed',
-        reference: 'CARD-2024-001',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[3].id,
-        method: 'mpesa',
-        amount: 800,
-        status: 'completed',
-        reference: 'TYU9BNM4K7',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[4].id,
-        method: 'cash',
-        amount: 500,
-        status: 'completed',
-        reference: 'CASH-2024-001',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[5].id,
-        method: 'mpesa',
-        amount: 300,
-        status: 'completed',
-        reference: 'VFR6CLN8M3',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[6].id,
-        method: 'mpesa',
-        amount: 12000,
-        status: 'completed',
-        reference: 'XPL2VBN9K5',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[7].id,
-        method: 'card',
-        amount: 9000,
-        status: 'completed',
-        reference: 'CARD-2024-002',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[8].id,
-        method: 'mpesa',
-        amount: 1000,
-        status: 'pending',
-        reference: 'ZKL4MNP7Q2',
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        bookingId: confirmedBookings[9].id,
-        method: 'mpesa',
-        amount: 12000,
-        status: 'completed',
-        reference: 'WQR8TYU3N6',
-      },
-    }),
-  ]);
+  // Sample bookings (mix of statuses)
+  const bookingsData = [
+    { seatNumber: "A1", userEmail: "mary.wanjiku@example.com", routeIndex: 0, status: "confirmed" },
+    { seatNumber: "A2", userEmail: "peter.ochieng@example.com", routeIndex: 0, status: "pending" },
+    { seatNumber: "B1", userEmail: "grace.njeri@example.com", routeIndex: 1, status: "confirmed" },
+    { seatNumber: "B2", userEmail: "samuel.otieno@example.com", routeIndex: 1, status: "cancelled" },
+    { seatNumber: "C1", userEmail: "mary.wanjiku@example.com", routeIndex: 7, status: "confirmed" }, // flight
+    { seatNumber: "C2", userEmail: "john.kamau@example.com", routeIndex: 7, status: "pending" },
+    { seatNumber: "D1", userEmail: "peter.ochieng@example.com", routeIndex: 4, status: "confirmed" }, // matatu
+    { seatNumber: "D2", userEmail: "samuel.otieno@example.com", routeIndex: 5, status: "pending" },
+    { seatNumber: "E1", userEmail: "grace.njeri@example.com", routeIndex: 2, status: "confirmed" },
+    { seatNumber: "E2", userEmail: "john.kamau@example.com", routeIndex: 3, status: "pending" },
+  ];
 
-  console.log(`✅ Created ${payments.length} payments`);
+  const createdBookings = [];
+  for (const b of bookingsData) {
+    const user = createdUsers.find(u => u.email === b.userEmail)!;
+    const route = createdRoutes[b.routeIndex];
+    if (!user || !route) continue;
+    const booking = await getOrCreateBooking({
+      seatNumber: b.seatNumber,
+      userId: user.id,
+      routeId: route.id,
+      status: b.status,
+    });
+    createdBookings.push(booking);
+  }
 
-  console.log('\n✨ Database seeding completed successfully!');
-  console.log('\n📊 Summary:');
-  console.log(`   - Users: ${users.length} (${users.filter(u => u.role === 'admin').length} admins, ${users.filter(u => u.role === 'user').length} regular users)`);
-  console.log(`   - Vehicles: ${vehicles.length}`);
-  console.log(`   - Routes: ${routes.length}`);
-  console.log(`   - Bookings: ${bookings.length} (${confirmedBookings.length} confirmed, ${bookings.filter(b => b.status === 'pending').length} pending, ${bookings.filter(b => b.status === 'cancelled').length} cancelled)`);
-  console.log(`   - Payments: ${payments.length}`);
-  console.log('\n💡 Test credentials:');
-  console.log('   Admin: john.kamau@example.com / password123');
-  console.log('   User: mary.wanjiku@example.com / password123');
+  // Sample payments for confirmed bookings
+  for (const bk of createdBookings.filter(b => b.status === "confirmed")) {
+    const exists = await prisma.payment.findUnique({ where: { bookingId: bk.id } });
+    if (exists) continue;
+    // random method
+    const method = Math.random() > 0.5 ? "mpesa" : "card";
+    const ref = method === "mpesa" ? `MPESA${Date.now().toString().slice(-6)}` : `CARD${Date.now().toString().slice(-6)}`;
+    await getOrCreatePayment({
+      bookingId: bk.id,
+      method,
+      amount: 1000 + Math.floor(Math.random() * 5000),
+      status: "completed",
+      reference: ref,
+    });
+  }
+
+  console.log("Seeding finished.");
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
-    console.error('❌ Error seeding database:', e);
-    await prisma.$disconnect();
+  .catch((e) => {
+    console.error(e);
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });
