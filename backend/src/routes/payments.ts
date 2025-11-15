@@ -1,80 +1,89 @@
 import { Router, Request, Response } from 'express';
+import prisma from '../lib/prisma';
 
 const router = Router();
 
-// Mock payments data
-const mockPayments = [
-  {
-    id: '1',
-    bookingId: '1',
-    method: 'mpesa',
-    amount: 1500,
-    status: 'completed',
-    reference: 'MPESA123456',
-    createdAt: new Date(),
-  },
-];
-
 // GET all payments
-router.get('/', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: mockPayments,
-    count: mockPayments.length,
-  });
+router.get('/', async (_req: Request, res: Response) => {
+  try {
+    const payments = await prisma.payment.findMany({
+      include: { booking: { include: { route: true, user: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ success: true, data: payments, count: payments.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch payments' });
+  }
 });
 
 // GET single payment
-router.get('/:id', (req: Request, res: Response) => {
-  const payment = mockPayments.find((p) => p.id === req.params.id);
-  
-  if (!payment) {
-    return res.status(404).json({
-      success: false,
-      error: 'Payment not found',
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const payment = await prisma.payment.findUnique({
+      where: { id: req.params.id },
+      include: { booking: { include: { route: true, user: true } } },
     });
+    if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+    res.json({ success: true, data: payment });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch payment' });
   }
-
-  res.json({
-    success: true,
-    data: payment,
-  });
 });
 
 // POST initiate payment
-router.post('/initiate', (req: Request, res: Response) => {
-  const { bookingId, method, amount } = req.body;
+router.post('/initiate', async (req: Request, res: Response) => {
+  try {
+    const { bookingId, method, amount } = req.body;
 
-  const newPayment = {
-    id: String(mockPayments.length + 1),
-    bookingId,
-    method,
-    amount,
-    status: 'pending',
-    reference: `REF${Date.now()}`,
-    createdAt: new Date(),
-  };
+    // Ensure booking exists
+    const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) return res.status(404).json({ success: false, error: 'Booking not found' });
 
-  res.status(201).json({
-    success: true,
-    data: newPayment,
-    message: 'Payment initiated successfully',
-  });
+    const payment = await prisma.payment.create({
+      data: {
+        bookingId,
+        method,
+        amount: Number(amount),
+        status: 'pending',
+        reference: `REF${Date.now()}`,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: payment,
+      message: 'Payment initiated successfully',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, error: 'Failed to initiate payment' });
+  }
 });
 
 // POST verify payment
-router.post('/verify', (req: Request, res: Response) => {
-  const { reference } = req.body;
+router.post('/verify', async (req: Request, res: Response) => {
+  try {
+    const { reference } = req.body;
 
-  res.json({
-    success: true,
-    data: {
-      reference,
-      status: 'completed',
-      verified: true,
-    },
-    message: 'Payment verified successfully',
-  });
+    const payment = await prisma.payment.findFirst({ where: { reference } });
+    if (!payment) return res.status(404).json({ success: false, error: 'Payment not found' });
+
+    const updated = await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: 'completed' },
+    });
+
+    res.json({
+      success: true,
+      data: { ...updated, verified: true },
+      message: 'Payment verified successfully',
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, error: 'Failed to verify payment' });
+  }
 });
 
 export default router;

@@ -1,83 +1,91 @@
 import { Router, Request, Response } from 'express';
+import prisma from '../lib/prisma';
 
 const router = Router();
 
-// Mock data for development
-const mockRoutes = [
-  {
-    id: '1',
-    origin: 'Nairobi',
-    destination: 'Mombasa',
-    departure: new Date('2024-01-15T08:00:00'),
-    arrival: new Date('2024-01-15T16:00:00'),
-    price: 1500,
-    vehicleId: '1',
-  },
-  {
-    id: '2',
-    origin: 'Nairobi',
-    destination: 'Kisumu',
-    departure: new Date('2024-01-15T09:00:00'),
-    arrival: new Date('2024-01-15T15:00:00'),
-    price: 1200,
-    vehicleId: '2',
-  },
-];
-
 // GET all routes
-router.get('/', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: mockRoutes,
-    count: mockRoutes.length,
-  });
+router.get('/', async (_req: Request, res: Response) => {
+  try {
+    const routes = await prisma.route.findMany({
+      include: {
+        vehicle: true,
+      },
+      orderBy: { departure: 'asc' },
+    });
+    res.json({ success: true, data: routes, count: routes.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch routes' });
+  }
 });
 
 // GET single route
-router.get('/:id', (req: Request, res: Response) => {
-  const route = mockRoutes.find((r) => r.id === req.params.id);
-  
-  if (!route) {
-    return res.status(404).json({
-      success: false,
-      error: 'Route not found',
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const route = await prisma.route.findUnique({
+      where: { id: req.params.id },
+      include: { vehicle: true },
     });
+    if (!route) return res.status(404).json({ success: false, error: 'Route not found' });
+    res.json({ success: true, data: route });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch route' });
   }
-
-  res.json({
-    success: true,
-    data: route,
-  });
 });
 
 // POST create route
-router.post('/', (req: Request, res: Response) => {
-  const newRoute = {
-    id: String(mockRoutes.length + 1),
-    ...req.body,
-  };
-
-  res.status(201).json({
-    success: true,
-    data: newRoute,
-    message: 'Route created successfully',
-  });
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const { origin, destination, departure, arrival, price, vehicleId } = req.body;
+    const created = await prisma.route.create({
+      data: {
+        origin,
+        destination,
+        departure: new Date(departure),
+        arrival: new Date(arrival),
+        price: Number(price),
+        vehicleId,
+      },
+    });
+    res.status(201).json({ success: true, data: created, message: 'Route created successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, error: 'Failed to create route' });
+  }
 });
 
 // PUT update route
-router.put('/:id', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    message: 'Route updated successfully',
-  });
+router.put('/:id', async (req: Request, res: Response) => {
+  try {
+    const { origin, destination, departure, arrival, price, vehicleId } = req.body;
+    const updated = await prisma.route.update({
+      where: { id: req.params.id },
+      data: {
+        origin,
+        destination,
+        departure: departure ? new Date(departure) : undefined,
+        arrival: arrival ? new Date(arrival) : undefined,
+        price: price !== undefined ? Number(price) : undefined,
+        vehicleId,
+      },
+    });
+    res.json({ success: true, data: updated, message: 'Route updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, error: 'Failed to update route' });
+  }
 });
 
 // DELETE route
-router.delete('/:id', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    message: 'Route deleted successfully',
-  });
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    await prisma.route.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'Route deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, error: 'Failed to delete route' });
+  }
 });
 
 export default router;

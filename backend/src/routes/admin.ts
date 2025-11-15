@@ -1,63 +1,86 @@
 import { Router, Request, Response } from 'express';
+import prisma from '../lib/prisma';
 
 const router = Router();
 
-// Mock admin statistics
-const mockStats = {
-  totalBookings: 0,
-  activeRoutes: 0,
-  totalRevenue: 0,
-  totalVehicles: 0,
-  recentBookings: [],
-};
-
 // GET dashboard statistics
-router.get('/stats', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: mockStats,
-  });
+router.get('/stats', async (_req: Request, res: Response) => {
+  try {
+    const [totalBookings, activeRoutes, totalVehicles, revenueAgg] = await Promise.all([
+      prisma.booking.count({ where: { status: { in: ['pending', 'confirmed'] } } }),
+      prisma.route.count(),
+      prisma.vehicle.count(),
+      prisma.payment.aggregate({
+        _sum: { amount: true },
+        where: { status: 'completed' },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalBookings,
+        activeRoutes,
+        totalVehicles,
+        totalRevenue: revenueAgg._sum.amount ?? 0,
+        recentBookings: await prisma.booking.findMany({
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          include: { user: true, route: true, payment: true },
+        }),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch stats' });
+  }
 });
 
 // GET all vehicles
-router.get('/vehicles', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: [],
-    count: 0,
-  });
+router.get('/vehicles', async (_req: Request, res: Response) => {
+  try {
+    const vehicles = await prisma.vehicle.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ success: true, data: vehicles, count: vehicles.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch vehicles' });
+  }
 });
 
 // POST create vehicle
-router.post('/vehicles', (req: Request, res: Response) => {
-  const newVehicle = {
-    id: '1',
-    ...req.body,
-    createdAt: new Date(),
-  };
-
-  res.status(201).json({
-    success: true,
-    data: newVehicle,
-    message: 'Vehicle created successfully',
-  });
+router.post('/vehicles', async (req: Request, res: Response) => {
+  try {
+    const created = await prisma.vehicle.create({ data: req.body });
+    res.status(201).json({ success: true, data: created, message: 'Vehicle created successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, error: 'Failed to create vehicle' });
+  }
 });
 
 // GET all users
-router.get('/users', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: [],
-    count: 0,
-  });
+router.get('/users', async (_req: Request, res: Response) => {
+  try {
+    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ success: true, data: users, count: users.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch users' });
+  }
 });
 
 // PUT update user role
-router.put('/users/:id/role', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    message: 'User role updated successfully',
-  });
+router.put('/users/:id/role', async (req: Request, res: Response) => {
+  try {
+    const updated = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { role: req.body.role },
+    });
+    res.json({ success: true, data: updated, message: 'User role updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(400).json({ success: false, error: 'Failed to update user role' });
+  }
 });
 
 export default router;
