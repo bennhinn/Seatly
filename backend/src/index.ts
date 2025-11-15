@@ -2,7 +2,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
+import { initSocket } from './lib/socket';
 import routesRouter from './routes/routes';
 import seatsRouter from './routes/seats';
 import bookingsRouter from './routes/bookings';
@@ -14,12 +14,7 @@ dotenv.config();
 
 const app: Application = express();
 const httpServer = createServer(app);
-const io = new SocketIOServer(httpServer, {
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST'],
-  },
-});
+const io = initSocket(httpServer);
 
 const PORT = process.env.PORT || 5000;
 
@@ -72,26 +67,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
-
-  // Handle seat selection events
-  socket.on('seat:select', (data) => {
-    console.log('Seat selected:', data);
-    socket.broadcast.emit('seat:updated', data);
-  });
-
-  // Handle seat release events
-  socket.on('seat:release', (data) => {
-    console.log('Seat released:', data);
-    socket.broadcast.emit('seat:updated', data);
-  });
-});
+// Socket.IO connection handling is now in src/lib/socket.ts
 
 // Start server
 httpServer.listen(PORT, () => {
