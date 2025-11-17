@@ -4,6 +4,40 @@ import { emitSeatUpdate } from '../lib/socket';
 
 const router = Router();
 
+// GET all routes (base endpoint)
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const routes = await prisma.route.findMany({
+      include: {
+        vehicle: true,
+        _count: {
+          select: {
+            bookings: {
+              where: { status: { in: ['pending', 'confirmed'] } },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Use /api/seats/:routeId to get seats for a specific route',
+      data: routes.map((r) => ({
+        id: r.id,
+        origin: r.origin,
+        destination: r.destination,
+        departureTime: r.departure,
+        totalSeats: r.vehicle ? (r.vehicle.seatLayout as any)?.rows * (r.vehicle.seatLayout as any)?.seatsPerRow : 0,
+        bookedSeats: r._count.bookings,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'Failed to fetch routes' });
+  }
+});
+
 type Seat = { number: string; available: boolean; type: 'standard' | 'premium' | 'unknown' };
 
 function rowLetter(index: number) {
