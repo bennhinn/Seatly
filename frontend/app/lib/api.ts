@@ -26,7 +26,7 @@ export const api = {
   async post<T>(endpoint: string, data: unknown): Promise<T> {
     try {
       console.log('POST request to:', `${API_URL}${endpoint}`, 'with data:', data);
-      
+
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: {

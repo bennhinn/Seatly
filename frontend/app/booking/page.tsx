@@ -121,7 +121,7 @@ export default function BookingPage() {
     }
 
     setSelectedSeat(seatNumber);
-    
+
     if (selectedRoute) {
       try {
         await api.post(`/api/seats/${selectedRoute.id}/select`, {
@@ -164,7 +164,7 @@ export default function BookingPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Book Your Seat</h1>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             {/* Search Form */}
@@ -219,9 +219,8 @@ export default function BookingPage() {
                     <div
                       key={route.id}
                       onClick={() => handleRouteSelect(route)}
-                      className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                        selectedRoute?.id === route.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                      }`}
+                      className={`p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${selectedRoute?.id === route.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                        }`}
                     >
                       <div className="flex justify-between items-center">
                         <div>
@@ -297,9 +296,8 @@ export default function BookingPage() {
               </div>
               <button
                 disabled={!selectedSeat}
-                className={`w-full mt-6 px-4 py-2 rounded-md transition-colors ${
-                  selectedSeat ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-400 text-white cursor-not-allowed'
-                }`}
+                className={`w-full mt-6 px-4 py-2 rounded-md transition-colors ${selectedSeat ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-400 text-white cursor-not-allowed'
+                  }`}
               >
                 Proceed to Payment
               </button>
