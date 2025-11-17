@@ -4,7 +4,7 @@ let socket: Socket | null = null;
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const url = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
     socket = io(url, {
       autoConnect: true,
       reconnection: true,
@@ -26,6 +26,18 @@ export const getSocket = (): Socket => {
   }
 
   return socket;
+};
+
+export const joinRoute = (routeId: string): void => {
+  const s = getSocket();
+  s.emit('join:route', routeId);
+  console.log(`Joined route room: ${routeId}`);
+};
+
+export const leaveRoute = (routeId: string): void => {
+  const s = getSocket();
+  s.emit('leave:route', routeId);
+  console.log(`Left route room: ${routeId}`);
 };
 
 export const disconnectSocket = (): void => {
